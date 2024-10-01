@@ -1,6 +1,8 @@
 import socket 
 import threading
 import time
+import sys
+#from kafka import KafkaProducer
 
 HEADER = 64
 PORT = 5050
@@ -9,12 +11,34 @@ ADDR = (TAXI_IP, PORT)
 FORMAT = 'utf-8'
 EXIT = "EXIT"
 
+#producer= KafkaProducer(bootstrap_servers='127.0.0.1:9092')
+
+if len(sys.argv) != 2:
+    exit()
+
+ID = sys.argv[1]
+
 ####################################################
 
-def taxi_warning(msg, ID):
-    print(f"Warning from sensor number {ID}: {msg}")
 
-def handle_sensor(conn, ID):
+state = "OK"
+
+def send_taxi_state():
+    while True:
+        print(state)
+        #producer.send("taxi_status", (ID + " " + state).encode(FORMAT))
+        time.sleep(1)
+
+def taxi_warning(msg, sensor_id):
+    print(f"Warning from sensor number {sensor_id}: {msg}")
+
+    if msg != "HELLO":
+        global state
+        state = "KO"
+
+
+
+def handle_sensor(conn, sensor_id):
     connected = True
     while connected:
         msg_length = conn.recv(HEADER).decode(FORMAT)
@@ -24,22 +48,22 @@ def handle_sensor(conn, ID):
             if msg == EXIT:
                 connected = False
             else:
-                taxi_warning(msg, ID)
+                taxi_warning(msg, sensor_id)
                 conn.send(f"TAXI has been warned".encode(FORMAT))
-    print(f"CLOSING THE SENSOR NUMBER {ID}")
+    print(f"CLOSING THE SENSOR NUMBER {sensor_id}")
     conn.close()
 
 
 def start():
     server.listen()
-    id = 1
+    sensor_id = 1
 
     while True:
         conn, addr = server.accept()
-        thread = threading.Thread(target=handle_sensor, args=(conn, id))
+        thread = threading.Thread(target=handle_sensor, args=(conn, sensor_id))
         thread.start()
-        num_of_sensors = threading.active_count() - 1
-        id+=1
+        num_of_sensors = threading.active_count() - 2
+        sensor_id+=1
         print(f"Number of sensors: {num_of_sensors}")
 
 ####################################################
@@ -48,5 +72,8 @@ server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind(ADDR)
 
 print(f"[START] TAXI started at {TAXI_IP}, {PORT}")
+
+thread_status = threading.Thread(target=send_taxi_state)
+thread_status.start()
 
 start()
