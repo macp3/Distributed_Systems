@@ -7,8 +7,7 @@ import sys
 HEADER = 64
 PORT = 5050
 TAXI_IP = socket.gethostbyname(socket.gethostname())
-ADDR = (TAXI_IP, PORT)
-ADDR_CENT = ADDR
+ADDR_CENT = ('192.168.1.137', 5051)
 FORMAT = 'utf-8'
 EXIT = "EXIT"
 
@@ -22,19 +21,21 @@ ID = sys.argv[1]
 
 def send(msg):
     message = msg.encode(FORMAT)
-    msg_length = len(message)
-    send_length = str(msg_length).encode(FORMAT)
-    send_length += b' ' * (HEADER - len(send_length))
-    client.send(send_length)
+    # msg_length = len(message)
+    # send_length = str(msg_length).encode(FORMAT)
+    # send_length += b' ' * (HEADER - len(send_length))
+    # client.send(send_length)
     client.send(message)
 
 client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 client.connect(ADDR_CENT)
-send(ID)
+send(str(ID))
 
 ####################################################
 
 if int(client.recv(2048).decode(FORMAT)):
+
+    ADDR = (TAXI_IP, PORT+int(ID)+1)
 
     state = "OK"
 

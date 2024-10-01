@@ -25,7 +25,7 @@ if  (len(sys.argv) == 3):
     
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect(ADDR)
-    print (f"Connection with TAXI: [{ADDR}]")
+    print (f"Connection with TAXI: [{ADDR} ID: {PORT - 5051}]")
     msg = "HELLO"
 
     while msg != EXIT :
