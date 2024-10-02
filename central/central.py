@@ -21,7 +21,7 @@ def taxi_control():
         msg = conn.recv(HEADER).decode(FORMAT) 
         if msg:
             try:  
-                print(msg)
+                print(f"New TAXI has been registered: [ID: {msg} ADDR: {addr}]")
                 if int(msg) in taxi_list:
                     conn.send(f"0".encode(FORMAT))
                 else:
