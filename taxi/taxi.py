@@ -7,19 +7,21 @@ import sys
 HEADER = 64
 PORT = 5050
 TAXI_IP = socket.gethostbyname(socket.gethostname())
-ADDR_CENT = ('172.27.131.104', 5051)
 FORMAT = 'utf-8'
 EXIT = "EXIT"
 
 #producer= KafkaProducer(bootstrap_servers='127.0.0.1:9092')
 
-if len(sys.argv) != 2:
+if len(sys.argv) != 6:
     exit()
 
+ADDR_CENT = (sys.argv[1], sys.argv[2])
+ADDR_BROKER = (sys.argv[3], sys.argv[4])
+ID = sys.argv[5]
 
-ID = sys.argv[1]
 
 state = "FINAL"
+position = [1,1]
 
 def send(msg):
     message = msg.encode(FORMAT)
@@ -35,15 +37,20 @@ send(str(ID))
 
 def send_taxi_state():
         while True:
-            print(ID + " " + state)
+            print(f"{ID} {state} {position}")
             #producer.send("taxi_status", (ID + " " + state).encode(FORMAT))
             time.sleep(1)
 
 def taxi_warning(msg, sensor_id):
-    print(f"Warning from sensor number {sensor_id}: {msg}")
+    global state
 
-    if msg != "HELLO":
-        global state
+    if msg == "HELLO":
+        print(f"New sensor has been added: number {sensor_id}")
+    elif msg == "OK":
+        print(f"Information from sensor number {sensor_id}: {msg}")
+        state = "FINAL"
+    else:
+        print(f"Warning from sensor number {sensor_id}: {msg}")
         state = "STOPPED"
 
 
@@ -67,17 +74,23 @@ def handle_central(conn, addr):
     while connected:
         msg = conn.recv(HEADER).decode(FORMAT)
         if msg:
-                
             mes = msg.split(" ")
             global state
                 
             if mes[0] == "RESUME":
                 state = "FINAL"
+                conn.send(f"TAXI NR {ID} has resumed it's working".encode(FORMAT))
             elif mes[0] == "STOP":
                 state = "STOPPED"
+                conn.send(f"TAXI NR {ID} has stopped".encode(FORMAT))
             elif mes[0] == "GO":
                 TAXI_go(mes[2])
-
+                conn.send(f"TAXI NR {ID} is going to {mes[2]} point".encode(FORMAT))
+            elif mes[0] == "RETURN":
+                TAXI_go([0,0])
+                conn.send(f"TAXI NR {ID} is returning to base".encode(FORMAT))
+            else:
+                conn.send(f"Ooops, something gone wrong, nothing happend".encode(FORMAT))
 
             connected = False
     conn.close()
@@ -115,7 +128,7 @@ if int(client.recv(2048).decode(FORMAT)):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(ADDR)
 
-    print(f"[START] TAXI started at {TAXI_IP}, {PORT}")
+    print(f"[START] TAXI started at {ADDR[0]}, {ADDR[1]}")
 
     thread_status = threading.Thread(target=send_taxi_state)
     thread_status.start()

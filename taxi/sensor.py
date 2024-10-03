@@ -2,7 +2,6 @@ import socket
 import sys
 
 HEADER = 64
-PORT = 5050
 FORMAT = 'utf-8'
 EXIT = "EXIT"
 
