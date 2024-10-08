@@ -2,7 +2,7 @@ import socket
 import threading
 import time
 import sys
-#from kafka import KafkaProducer
+from kafka import KafkaProducer
 
 HEADER = 64
 PORT = 5050
@@ -10,18 +10,19 @@ TAXI_IP = socket.gethostbyname(socket.gethostname())
 FORMAT = 'utf-8'
 EXIT = "EXIT"
 
-#producer= KafkaProducer(bootstrap_servers='127.0.0.1:9092')
-
 if len(sys.argv) != 6:
     exit()
 
-ADDR_CENT = (sys.argv[1], sys.argv[2])
-ADDR_BROKER = (sys.argv[3], sys.argv[4])
+ADDR_CENT = (sys.argv[1], int(sys.argv[2]))
+ADDR_BROKER = f"{sys.argv[3]}:{sys.argv[4]}"
 ID = sys.argv[5]
 
+producer= KafkaProducer(bootstrap_servers=ADDR_BROKER)
 
 state = "FINAL"
 position = [1,1]
+
+connected_sensors = []
 
 def send(msg):
     message = msg.encode(FORMAT)
@@ -37,20 +38,19 @@ send(str(ID))
 
 def send_taxi_state():
         while True:
-            print(f"{ID} {state} {position}")
-            #producer.send("taxi_status", (ID + " " + state).encode(FORMAT))
+            producer.send("TaxiStatus", (f"{ID} {state}").encode(FORMAT))
+            time.sleep(1)
+
+def send_taxi_position():
+    while True:
+            producer.send("TaxiAndCustomerCoordinates", (f"TAXI {ID} [{position[0]},{position[1]}]").encode(FORMAT))
             time.sleep(1)
 
 def taxi_warning(msg, sensor_id):
     global state
 
-    if msg == "HELLO":
-        print(f"New sensor has been added: number {sensor_id}")
-    elif msg == "OK":
-        print(f"Information from sensor number {sensor_id}: {msg}")
-        state = "FINAL"
-    else:
-        print(f"Warning from sensor number {sensor_id}: {msg}")
+    if msg == "KO":
+        print(f"Warning from sensor number {sensor_id}")
         state = "STOPPED"
 
 
@@ -105,16 +105,17 @@ def start():
     while True:
         conn, addr = server.accept()
 
-        # MOZE NIE DZIALAC
+        # MOZE NIE DZIALAC - przetestowac z 2 ip
         if addr[0] == ADDR_CENT[0]:
             thread_cen = threading.Thread(target=handle_central, args=(conn, addr))
             thread_cen.start()
         else:
             thread = threading.Thread(target=handle_sensor, args=(conn, sensor_id))
             thread.start()
-            num_of_sensors = threading.active_count() - 2
+            connected_sensors.append(sensor_id)
+
             sensor_id+=1
-            print(f"Number of sensors: {num_of_sensors}")
+            print(f"Number of sensors: {len(connected_sensors)}")
 
 ####################################################
 
@@ -122,9 +123,7 @@ if int(client.recv(2048).decode(FORMAT)):
 
     ADDR = (TAXI_IP, PORT+int(ID)+1)
 
-
-    ####################################################
-
+####################################################
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(ADDR)
 
@@ -133,6 +132,9 @@ if int(client.recv(2048).decode(FORMAT)):
     thread_status = threading.Thread(target=send_taxi_state)
     thread_status.start()
 
+    thread_position = threading.Thread(target=send_taxi_position)
+    thread_position.start()
+
     start()
 else:
-    print("This taxi ID is taken")
+    print("This taxi ID is not valid")
