@@ -22,7 +22,7 @@ ADDR = (CENTRAL_IP, PORT)
 TAXI_IP = ""
 
 taxi_dic = {}
-customer_dic = {"1" : [6,8], "2": [5, 1]}
+customer_dic = {}
 
 def taxi_control():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -68,14 +68,15 @@ thread_taxi_status_receive.start()
 
 def position_receive():
     global taxi_dic
+    global customer_dic
     for message in position_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
         # msg_split = TAXI 1 [1,1]
-        # msg_split = CUSTOMER 1 [1,1]
+        # msg_split = CUSTOMER 1 state [1,1]
         if msg_split[0] == "TAXI":
-            taxi_dic[msg_split[1]][1] = [int(msg_split[2][1]), int(msg_split[2][3])]
+            taxi_dic[msg_split[1]][1] = [int(msg_split[2][1:len(msg_split[2])-1].split(",")[0]), int(msg_split[2][1:len(msg_split[2])-1].split(",")[1])]
         elif msg_split[0] == "CUSTOMER":
-            pass
+            customer_dic[msg_split[1]] = [msg_split[2], [int(msg_split[3][1:len(msg_split[3])-1].split(",")[0]), int(msg_split[3][1:len(msg_split[3])-1].split(",")[1])]]
 
 thread_taxi_position_receive = threading.Thread(target=position_receive)
 thread_taxi_position_receive.start()
