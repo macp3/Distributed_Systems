@@ -21,8 +21,13 @@ BROKER_PORT = sys.argv[3]
 ADDR = (CENTRAL_IP, PORT)
 TAXI_IP = ""
 
+#taxi dic = {ID : [STATUS, [POSITION]]}
 taxi_dic = {}
-customer_dic = {"1" : [6,8], "2": [5, 1]}
+customer_dic = {}
+#pilecznik kurwo 
+# ID [DEST]
+request_queue = []
+
 
 def taxi_control():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -56,12 +61,46 @@ thread_taxi_control.start()
 taxi_status_consumer = KafkaConsumer("TaxiStatus", bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
 position_consumer = KafkaConsumer("TaxiAndCustomerCoordinates", bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
 
+
 def taxi_status_receive():
     global taxi_dic
     for message in taxi_status_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
         # msg_split = 1 FINNAL
         taxi_dic[msg_split[0]][0] = msg_split[1]
+
+
+#z tej strony pilecznik kurwo
+request_consumer = KafkaConsumer("Request", bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
+def request_receive():
+    for message in request_consumer:
+        msg_split = message.value.decode(FORMAT).split(" ")
+        #request_queue = {[ID, [DEST]]}
+        #request_queue = {[1, [5,2]], [2, [6,8], ...}
+        request_queue.append([int(msg_split[0]), [int(msg_split[1]), int(msg_split[2])]])
+
+
+#kodzik bartusia :333
+def handle_request():
+    global taxi_dic
+    while not request_queue.empty:
+        for taxi in taxi_dic.items():
+            if str(taxi[1][0]) == "FINAL":
+                requestID = int(request_queue[0][0])
+                taxiID = taxi[0]
+                send_request_to_taxi(requestID, taxiID)
+                taxi[1][0] = "MOVING"
+
+                break
+
+#to tez moje
+#dostan sie do polozenia consumera ktory wyslal request
+request_producer = KafkaProducer(bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
+def send_request_to_taxi(customerID, taxiID):
+    request_producer.send("TaxiRequest", f"{str(taxiID)}, {str(customer_dic.get(customerID))}, {str(request_queue[1][0])}, {str(request_queue[1][1])}".encode(FORMAT))
+
+
+
 
 thread_taxi_status_receive = threading.Thread(target=taxi_status_receive)
 thread_taxi_status_receive.start()
@@ -71,11 +110,11 @@ def position_receive():
     for message in position_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
         # msg_split = TAXI 1 [1,1]
-        # msg_split = CUSTOMER 1 [1,1]
+        # msg_split = CUSTOMER 1 STATE [1,1]
         if msg_split[0] == "TAXI":
-            taxi_dic[msg_split[1]][1] = [int(msg_split[2][1]), int(msg_split[2][3])]
+            taxi_dic[msg_split[1]][1] = [int(msg_split[2][1:len(msg_split[2])-1].split(",")[0]), int(msg_split[2][1:len(msg_split[2])-1].split(",")[1])]
         elif msg_split[0] == "CUSTOMER":
-            pass
+            customer_dic[msg_split[1]] = [msg_split[2], [int(msg_split[3][1:len(msg_split[3])-1].split(",")[0]), int(msg_split[3][1:len(msg_split[3])-1].split(",")[1])]]
 
 thread_taxi_position_receive = threading.Thread(target=position_receive)
 thread_taxi_position_receive.start()
