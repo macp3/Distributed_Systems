@@ -107,7 +107,7 @@ thread_request_handle.start()
 request_producer = KafkaProducer(bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
 def send_request_to_taxi(taxiID):
     customerID = request_queue[0][0]
-    message = f"{str(taxiID)} {customer_dic[str(request_queue[0][0])][1][0]} {customer_dic[str(request_queue[0][0])][1][1]} {str(request_queue[0][1][0])} {str(request_queue[0][1][1])}"
+    message = f"{str(request_queue[0])} {str(taxiID)} {customer_dic[str(request_queue[0][0])][1][0]} {customer_dic[str(request_queue[0][0])][1][1]} {str(request_queue[0][1][0])} {str(request_queue[0][1][1])}"
     # taxiID x y
 
     request_producer.send("TaxiRequest", message.encode(FORMAT))

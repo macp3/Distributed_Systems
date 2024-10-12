@@ -22,6 +22,8 @@ producer= KafkaProducer(bootstrap_servers=ADDR_BROKER)
 state = "FINAL"
 position = [1,1]
 
+active_request_ID = 0
+
 connected_sensors = []
 
 def send(msg):
@@ -93,6 +95,8 @@ def handle_central(conn, addr):
                 else:
                     conn.send(f"TAXI NR {ID} is going to [{mes[2]},{mes[3]}] point".encode(FORMAT))
                     TAXI_go([int(mes[2]),int(mes[3])])
+                    if state != "STOPPED":
+                        state = "FINAL"
             elif mes[0] == "RETURN":
                 TAXI_go([1,1])
                 conn.send(f"TAXI NR {ID} is returning to base".encode(FORMAT))
@@ -121,20 +125,46 @@ def TAXI_go(dest):
             position[1]-=1
 
         time.sleep(1)
-    
-    if state != "STOPPED":
-        state = "FINAL"
 
 request_consumer = KafkaConsumer("TaxiRequest", bootstrap_servers=ADDR_BROKER)
 def TAXI_request_receive():
     for message in request_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
 
-        if msg_split[0] == ID:
-            print(message)
+        if msg_split[1] == ID:
+
+            active_request_ID = msg_split[0]
+            src = [msg_split[2], msg_split[3]]
+            dest = [msg_split[4], msg_split[5]]
+
+            #send_request_status thread OK
+            TAXI_go(src)
+
+            if state == "STOPPED":
+                #send_request_status thread.stop
+                #send_request_status KO
+                return -1
+            
+            time.sleep(4)
+            #send_request_status ZALADOWAL
+            
+            #send_request_status thread OK
+            TAXI_go(dest)
+
+            if state == "STOPPED":
+                #send_request_status thread.stop
+                #send_request_status KO
+                return -1
+            
+
+            #send_request_status DOJECHAL
+            state = "FINAL"
 
 thread_request_receive = threading.Thread(target=TAXI_request_receive)
 thread_request_receive.start()
+
+def send_request_status(request_status):
+    producer.send("RequestStatus", f"{active_request_ID} {request_status}")
 
 def start():
     server.listen()
