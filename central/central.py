@@ -79,28 +79,38 @@ def request_receive():
         #request_queue = {[1, [5,2]], [2, [6,8], ...}
         request_queue.append([int(msg_split[0]), [int(msg_split[1]), int(msg_split[2])]])
 
+        handle_request()
+
 
 #kodzik bartusia :333
 def handle_request():
     global taxi_dic
-    while not request_queue.empty:
+    if not request_queue.empty:
         for taxi in taxi_dic.items():
             if str(taxi[1][0]) == "FINAL":
-                requestID = int(request_queue[0][0])
                 taxiID = taxi[0]
-                send_request_to_taxi(requestID, taxiID)
+                send_request_to_taxi(taxiID)
                 taxi[1][0] = "MOVING"
-
-                break
+            break
+    else:
+        print("Empty request list! Nothing to handle")
 
 #to tez moje
-#dostan sie do polozenia consumera ktory wyslal request
 request_producer = KafkaProducer(bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
-def send_request_to_taxi(customerID, taxiID):
-    request_producer.send("TaxiRequest", f"{str(taxiID)}, {str(customer_dic.get(customerID))}, {str(request_queue[1][0])}, {str(request_queue[1][1])}".encode(FORMAT))
+def send_request_to_taxi(taxiID):
+    customerID = request_queue[0][0]
+    message = f"{str(taxiID)} {str(customer_dic[str(customerID)][0])} {str(customer_dic[str(customerID)][1])} {str(request_queue[0][1][0])} {str(request_queue[0][1][1])}"
 
+    request_producer.send("TaxiRequest", message.encode(FORMAT))
 
+    request_queue.pop(0)
 
+#moje tez
+#rozjebac wszystie psy petardami
+thread_request_receive = threading.Thread(target=request_receive)
+thread_request_receive.start()
+
+#customer_dic["3"][1] = #[5,9]
 
 thread_taxi_status_receive = threading.Thread(target=taxi_status_receive)
 thread_taxi_status_receive.start()
@@ -114,9 +124,7 @@ def position_receive():
         # msg_split = CUSTOMER 1 STATE [1,1]
         if msg_split[0] == "TAXI":
             taxi_dic[msg_split[1]][1] = [int(msg_split[2][1:len(msg_split[2])-1].split(",")[0]), int(msg_split[2][1:len(msg_split[2])-1].split(",")[1])]
-            taxi_dic[msg_split[1]][1] = [int(msg_split[2][1:len(msg_split[2])-1].split(",")[0]), int(msg_split[2][1:len(msg_split[2])-1].split(",")[1])]
         elif msg_split[0] == "CUSTOMER":
-            customer_dic[msg_split[1]] = [msg_split[2], [int(msg_split[3][1:len(msg_split[3])-1].split(",")[0]), int(msg_split[3][1:len(msg_split[3])-1].split(",")[1])]]
             customer_dic[msg_split[1]] = [msg_split[2], [int(msg_split[3][1:len(msg_split[3])-1].split(",")[0]), int(msg_split[3][1:len(msg_split[3])-1].split(",")[1])]]
 
 thread_taxi_position_receive = threading.Thread(target=position_receive)
