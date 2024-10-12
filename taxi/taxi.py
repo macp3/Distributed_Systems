@@ -84,7 +84,7 @@ def handle_central(conn, addr):
                 state = "STOPPED"
                 conn.send(f"TAXI NR {ID} has stopped".encode(FORMAT))
             elif mes[0] == "GO":
-                TAXI_go(mes[2])
+                TAXI_go([mes[2],mes[3]])
                 conn.send(f"TAXI NR {ID} is going to {mes[2]} point".encode(FORMAT))
             elif mes[0] == "RETURN":
                 TAXI_go([0,0])
@@ -124,6 +124,7 @@ if int(client.recv(2048).decode(FORMAT)):
     ADDR = (TAXI_IP, PORT+int(ID)+1)
 
 ####################################################
+
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(ADDR)
 
