@@ -2,7 +2,7 @@ import socket
 import threading
 import time
 import sys
-from kafka import KafkaProducer
+from kafka import KafkaProducer, KafkaConsumer
 
 HEADER = 64
 PORT = 5050
@@ -124,7 +124,17 @@ def TAXI_go(dest):
     
     if state != "STOPPED":
         state = "FINAL"
-    
+
+request_consumer = KafkaConsumer("TaxiRequest", bootstrap_servers=ADDR_BROKER)
+def TAXI_request_receive():
+    for message in request_consumer:
+        msg_split = message.value.decode(FORMAT).split(" ")
+
+        if msg_split[0] == ID:
+            print(message)
+
+thread_request_receive = threading.Thread(target=TAXI_request_receive)
+thread_request_receive.start()
 
 def start():
     server.listen()

@@ -28,7 +28,6 @@ customer_dic = {}
 # ID [DEST]
 request_queue = []
 
-
 def taxi_control():
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.bind(ADDR)
@@ -83,34 +82,37 @@ def request_receive():
             request_queue.append([int(msg_split[0]), [int(msg_split[1]), int(msg_split[2])]])
             handle_request()
 
+#moje tez
+#rozjebac wszystie psy petardami
+thread_request_receive = threading.Thread(target=request_receive)
+thread_request_receive.start()
+
 
 #kodzik bartusia :333
 def handle_request():
     global taxi_dic
-    if not request_queue.empty:
+    if not len(request_queue) == 0:
         for taxi in taxi_dic.items():
             if str(taxi[1][0]) == "FINAL":
                 taxiID = taxi[0]
                 send_request_to_taxi(taxiID)
-                taxi[1][0] = "MOVING"
-            break
-    else:
-        print("Empty request list! Nothing to handle")
+                break
+
+    time.sleep(1)
+
+thread_request_handle = threading.Thread(target=handle_request)
+thread_request_handle.start()
 
 #to tez moje
 request_producer = KafkaProducer(bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
 def send_request_to_taxi(taxiID):
     customerID = request_queue[0][0]
-    message = f"{str(taxiID)} {str(customer_dic[str(customerID)][0])} {str(customer_dic[str(customerID)][1])} {str(request_queue[0][1][0])} {str(request_queue[0][1][1])}"
+    message = f"{str(taxiID)} {customer_dic[str(request_queue[0][0])][1][0]} {customer_dic[str(request_queue[0][0])][1][1]} {str(request_queue[0][1][0])} {str(request_queue[0][1][1])}"
+    # taxiID x y
 
     request_producer.send("TaxiRequest", message.encode(FORMAT))
 
     request_queue.pop(0)
-
-#moje tez
-#rozjebac wszystie psy petardami
-thread_request_receive = threading.Thread(target=request_receive)
-thread_request_receive.start()
 
 #customer_dic["3"][1] = #[5,9]
 
