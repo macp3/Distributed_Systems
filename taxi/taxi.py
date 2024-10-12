@@ -84,10 +84,17 @@ def handle_central(conn, addr):
                 state = "STOPPED"
                 conn.send(f"TAXI NR {ID} has stopped".encode(FORMAT))
             elif mes[0] == "GO":
-                TAXI_go([mes[2],mes[3]])
-                conn.send(f"TAXI NR {ID} is going to {mes[2]} point".encode(FORMAT))
+                if state == "MOVING":
+                    conn.send(f"TAXI NR {ID} is already moving".encode(FORMAT))
+                elif state == "STOPPED":
+                    conn.send(f"TAXI NR {ID} has been stopped and can't move".encode(FORMAT))
+                elif not (1 <= int(mes[2]) <= 20 and 1 <= int(mes[3]) <= 20):
+                    conn.send(f"Wrong coordinates".encode(FORMAT))
+                else:
+                    conn.send(f"TAXI NR {ID} is going to [{mes[2]},{mes[3]}] point".encode(FORMAT))
+                    TAXI_go([int(mes[2]),int(mes[3])])
             elif mes[0] == "RETURN":
-                TAXI_go([0,0])
+                TAXI_go([1,1])
                 conn.send(f"TAXI NR {ID} is returning to base".encode(FORMAT))
             else:
                 conn.send(f"Ooops, something gone wrong, nothing happend".encode(FORMAT))
@@ -96,7 +103,28 @@ def handle_central(conn, addr):
     conn.close()
 
 def TAXI_go(dest):
-    pass
+    global position
+    global state
+
+    while not (dest[0] == position[0] and dest[1] == position[1]):
+        if state == "STOPPED":
+            break
+
+        state = "MOVING"
+        if dest[0] > position[0]:
+            position[0]+=1
+        elif dest[0] < position[0]:
+            position[0]-=1
+        if dest[1] > position[1]:
+            position[1]+=1
+        elif dest[1] < position[1]:
+            position[1]-=1
+
+        time.sleep(1)
+    
+    if state != "STOPPED":
+        state = "FINAL"
+    
 
 def start():
     server.listen()

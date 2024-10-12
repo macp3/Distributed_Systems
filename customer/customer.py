@@ -38,7 +38,7 @@ while working:
         working = False
     elif len(request.split(" ")):
         request_split = request.split(" ")
-        if 1 < request_split[0] < 21 and 1 < request_split[1] < 21:
+        if 1 <= request_split[0] <= 20 and 1 <= request_split[1] <= 20:
             request_producer.send("Request", f"{ID} {request_split[0]} {request_split[1]}".encode(FORMAT))
         else:
             print("Wrong destination")

@@ -71,7 +71,7 @@ def draw_map():
         print("\n" + "-" * 50 + "\n")  # Separator po mapie
 
         # Wyświetlenie informacji o taksówkach poniżej mapy
-        print(Fore.GREEN + "Information about customers:" + Style.RESET_ALL)
+        print(Fore.GREEN + "Information about taxis:" + Style.RESET_ALL)
         for taxi_id, taxi_info in taxi_dic.items():
             status, pos = taxi_info
             print(f"Taxi {taxi_id}: Status = {status}, Position = {pos}")

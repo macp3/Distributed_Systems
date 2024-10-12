@@ -160,7 +160,7 @@ def TAXI_GO(TAXI_ID, DEST):
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((TAXI_IP, 5051 + int(TAXI_ID)))
 
-    msg = f"GO {TAXI_ID} {DEST}"
+    msg = f"GO {TAXI_ID} {DEST[0]} {DEST[1]}"
     message = msg.encode(FORMAT)
 
     client.send(message)
@@ -179,7 +179,7 @@ while Working:
         print("Wrong taxi number")
     elif len(commands) == 2 and commands[0] in ("STOP", "RESUME", "RETURN") and commands[1].isdigit():
         TAXI_ORDER(commands[0], commands[1])
-    elif len(commands) == 3 and commands[0] == "GO" and commands[1].isdigit():
-        TAXI_GO(commands[1], commands[2])
+    elif len(commands) == 4 and commands[0] == "GO" and commands[1].isdigit() and commands[2].isdigit() and commands[3].isdigit():
+        TAXI_GO(commands[1], [commands[2],commands[3]])
     else:
         print("Wrong command")
