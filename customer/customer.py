@@ -24,3 +24,4 @@ def send_customer_position():
 
 thread_customer_position_send = threading.Thread(target=send_customer_position)
 thread_customer_position_send.start()
+
