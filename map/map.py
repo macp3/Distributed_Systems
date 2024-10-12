@@ -19,8 +19,6 @@ def position_receive():
     global customer_dic
     for message in position_consumer:
         message_split = message.value.decode(FORMAT).split("@")
-        print(message_split[0].replace("\'", "\""))
-        print(message_split[1].replace("\'", "\""))
         taxi_dic = json.loads(message_split[0].replace("\'", "\""))
         customer_dic = json.loads(message_split[1].replace("\'", "\""))
 def print_map():
@@ -33,4 +31,4 @@ def print_map():
 thread_position_receive = threading.Thread(target=position_receive)
 thread_position_receive.start()
 
-#print_map()
+print_map()
