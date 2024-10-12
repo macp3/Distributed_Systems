@@ -77,9 +77,11 @@ def request_receive():
         msg_split = message.value.decode(FORMAT).split(" ")
         #request_queue = {[ID, [DEST]]}
         #request_queue = {[1, [5,2]], [2, [6,8], ...}
-        request_queue.append([int(msg_split[0]), [int(msg_split[1]), int(msg_split[2])]])
-
-        handle_request()
+        if msg_split[0] == "EXIT":
+            customer_dic.pop(msg_split[1])
+        else:
+            request_queue.append([int(msg_split[0]), [int(msg_split[1]), int(msg_split[2])]])
+            handle_request()
 
 
 #kodzik bartusia :333

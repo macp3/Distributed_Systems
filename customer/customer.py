@@ -34,8 +34,11 @@ while working:
     request = input("Where do you want to go?: ")
 
     if request == "EXIT":
+        request_producer.send("Request", f"EXIT {ID}".encode(FORMAT))
         working = False
     elif len(request.split(" ")):
         request_split = request.split(" ")
         if 1 < request_split[0] < 21 and 1 < request_split[1] < 21:
             request_producer.send("Request", f"{ID} {request_split[0]} {request_split[1]}".encode(FORMAT))
+        else:
+            print("Wrong destination")
