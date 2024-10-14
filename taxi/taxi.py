@@ -110,24 +110,25 @@ def TAXI_go(dest):
     global position
     global state
 
-    while not (dest[0] == position[0] and dest[1] == position[1]):
+    while not (int(dest[0]) == int(position[0]) and int(dest[1]) == int(position[1])):
         if state == "STOPPED":
             break
 
         state = "MOVING"
-        if dest[0] > position[0]:
+        if int(dest[0]) > int(position[0]):
             position[0]+=1
-        elif dest[0] < position[0]:
+        elif int(dest[0]) < int(position[0]):
             position[0]-=1
-        if dest[1] > position[1]:
+        if int(dest[1]) > int(position[1]):
             position[1]+=1
-        elif dest[1] < position[1]:
+        elif int(dest[1]) < int(position[1]):
             position[1]-=1
 
         time.sleep(1)
 
 request_consumer = KafkaConsumer("TaxiRequest", bootstrap_servers=ADDR_BROKER)
 def TAXI_request_receive():
+    global active_request_ID
     for message in request_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
 
@@ -137,15 +138,21 @@ def TAXI_request_receive():
             src = [msg_split[2], msg_split[3]]
             dest = [msg_split[4], msg_split[5]]
 
+            thread_status_send_OK = threading.Thread(target=send_request_status, args=("OK"))
+
             #send_request_status thread OK
+            thread_status_send_OK.start()
             TAXI_go(src)
 
             if state == "STOPPED":
                 #send_request_status thread.stop
+                thread_status_send_OK.join()
                 #send_request_status KO
+                send_request_status("KO")
                 return -1
             
-            time.sleep(4)
+            send_request_status("AT_CLIENT")
+            time.sleep(3)
             #send_request_status ZALADOWAL
             
             #send_request_status thread OK
@@ -153,11 +160,14 @@ def TAXI_request_receive():
 
             if state == "STOPPED":
                 #send_request_status thread.stop
+                thread_status_send_OK.join()
                 #send_request_status KO
+                send_request_status(f"KO {position[0]} {position[1]}")
                 return -1
             
 
             #send_request_status DOJECHAL
+            send_request_status("FINAL")
             state = "FINAL"
 
 thread_request_receive = threading.Thread(target=TAXI_request_receive)
@@ -165,6 +175,7 @@ thread_request_receive.start()
 
 def send_request_status(request_status):
     producer.send("RequestStatus", f"{active_request_ID} {request_status}")
+    time.sleep(1)
 
 def start():
     server.listen()

@@ -87,6 +87,8 @@ def request_receive():
 thread_request_receive = threading.Thread(target=request_receive)
 thread_request_receive.start()
 
+#to tez moje
+request_producer = KafkaProducer(bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
 
 #kodzik bartusia :333
 def handle_request():
@@ -97,17 +99,17 @@ def handle_request():
                 taxiID = taxi[0]
                 send_request_to_taxi(taxiID)
                 break
+        else:
+            request_producer.send("RequestStatus", f"{request_queue[0]} ABORT")
 
     time.sleep(1)
 
 thread_request_handle = threading.Thread(target=handle_request)
 thread_request_handle.start()
 
-#to tez moje
-request_producer = KafkaProducer(bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
 def send_request_to_taxi(taxiID):
     customerID = request_queue[0][0]
-    message = f"{str(request_queue[0])} {str(taxiID)} {customer_dic[str(request_queue[0][0])][1][0]} {customer_dic[str(request_queue[0][0])][1][1]} {str(request_queue[0][1][0])} {str(request_queue[0][1][1])}"
+    message = f"{str(request_queue[0][0])} {str(taxiID)} {customer_dic[str(request_queue[0][0])][1][0]} {customer_dic[str(request_queue[0][0])][1][1]} {str(request_queue[0][1][0])} {str(request_queue[0][1][1])}"
     # taxiID x y
 
     request_producer.send("TaxiRequest", message.encode(FORMAT))
