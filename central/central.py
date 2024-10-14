@@ -100,7 +100,7 @@ def handle_request():
                 send_request_to_taxi(taxiID)
                 break
         else:
-            request_producer.send("RequestStatus", f"{request_queue[0]} ABORT")
+            request_producer.send("RequestStatus", (f"{request_queue[0][0]} ABORT").encode(FORMAT))
 
     time.sleep(1)
 

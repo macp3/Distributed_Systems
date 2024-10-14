@@ -129,6 +129,7 @@ def TAXI_go(dest):
 request_consumer = KafkaConsumer("TaxiRequest", bootstrap_servers=ADDR_BROKER)
 def TAXI_request_receive():
     global active_request_ID
+    global state
     for message in request_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
 
@@ -138,7 +139,7 @@ def TAXI_request_receive():
             src = [msg_split[2], msg_split[3]]
             dest = [msg_split[4], msg_split[5]]
 
-            thread_status_send_OK = threading.Thread(target=send_request_status, args=("OK"))
+            thread_status_send_OK = threading.Thread(target=lambda: send_request_status("OK"))
 
             #send_request_status thread OK
             thread_status_send_OK.start()
@@ -174,7 +175,7 @@ thread_request_receive = threading.Thread(target=TAXI_request_receive)
 thread_request_receive.start()
 
 def send_request_status(request_status):
-    producer.send("RequestStatus", f"{active_request_ID} {request_status}")
+    producer.send("RequestStatus", (f"{active_request_ID} {request_status}").encode(FORMAT))
     time.sleep(1)
 
 def start():

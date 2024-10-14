@@ -32,7 +32,7 @@ def request_status_receive():
     global position
 
     for message in request_consumer:
-        msg_split = message.split(" ")
+        msg_split = message.value.decode(FORMAT).split(" ")
 
         if msg_split[0] == ID:
             if msg_split[1] == "KO" and len(msg_split) == 2:

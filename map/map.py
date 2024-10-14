@@ -58,7 +58,7 @@ def draw_map():
             customer_pos = customer_info[1]
             try:
                 if isinstance(customer_pos, list) and len(customer_pos) == 2 and customer_status != "MOVING":
-                    x, y = customer_pos[0] % 20, customer_pos[1] % 20
+                    x, y = (customer_pos[0]-1) % 20, (customer_pos[1]-1) % 20
                     # Niebiescy klienci
                     map_[y][x] = Fore.BLUE + f'C{customer_id}' + Style.RESET_ALL
             except Exception as e:
