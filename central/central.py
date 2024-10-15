@@ -45,7 +45,7 @@ def taxi_control():
                 taxi_list_file = pd.read_csv("taxis.csv")
 
                 if int(msg) in taxi_list_file["ID"].values and msg not in taxi_dic.keys():
-                    print(f"\rNew TAXI has been registered: [ID: {msg} ADDR: {addr}]\n$: ", end="")
+                    print(f"\rNew TAXI has been registered: [ID: {msg} ADDR: {addr}]\n\r$: ", end="")
                     conn.send(f"1".encode(FORMAT))
                     taxi_dic[msg] = ["FINAL", [1,1]]
                 else:
@@ -74,13 +74,12 @@ request_consumer = KafkaConsumer("Request", bootstrap_servers=f"{BROKER_IP}:{BRO
 def request_receive():
     for message in request_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
-        #request_queue = {[ID, [DEST]]}
-        #request_queue = {[1, [5,2]], [2, [6,8], ...}
+        #request_queue = [ID, [DEST]]
+        #request_queue = [[1, [5,2]], [2, [6,8]], ...]
         if msg_split[0] == "EXIT":
             customer_dic.pop(msg_split[1])
         else:
             request_queue.append([int(msg_split[0]), [int(msg_split[1]), int(msg_split[2])]])
-            handle_request()
 
 #moje tez
 #rozjebac wszystie psy petardami
@@ -90,19 +89,22 @@ thread_request_receive.start()
 #to tez moje
 request_producer = KafkaProducer(bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
 
-#kodzik bartusia :333
 def handle_request():
     global taxi_dic
-    if not len(request_queue) == 0:
-        for taxi in taxi_dic.items():
-            if str(taxi[1][0]) == "FINAL":
-                taxiID = taxi[0]
-                send_request_to_taxi(taxiID)
-                break
-        else:
-            request_producer.send("RequestStatus", (f"{request_queue[0][0]} ABORT").encode(FORMAT))
+    while True:
+        if not len(request_queue) == 0:
+            found = False
+            for taxiID, taxi_info in taxi_dic.items():
+                if taxi_info[0] == "FINAL":
+                    send_request_to_taxi(taxiID)
+                    found = True
+                    break
+            if not found:
+                time.sleep(1)
+                request_producer.send("RequestStatus", (f"{request_queue[0][0]} ABORT").encode(FORMAT))
+                request_queue.pop(0)
 
-    time.sleep(1)
+        time.sleep(1)
 
 thread_request_handle = threading.Thread(target=handle_request)
 thread_request_handle.start()

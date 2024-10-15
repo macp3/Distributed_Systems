@@ -39,14 +39,14 @@ client.connect(ADDR_CENT)
 send(str(ID))
 
 def send_taxi_state():
-        while True:
-            producer.send("TaxiStatus", (f"{ID} {state}").encode(FORMAT))
-            time.sleep(1)
+    while True:
+        producer.send("TaxiStatus", (f"{ID} {state}").encode(FORMAT))
+        time.sleep(1)
 
 def send_taxi_position():
     while True:
-            producer.send("TaxiAndCustomerCoordinates", (f"TAXI {ID} [{position[0]},{position[1]}]").encode(FORMAT))
-            time.sleep(1)
+        producer.send("TaxiAndCustomerCoordinates", (f"TAXI {ID} [{position[0]},{position[1]}]").encode(FORMAT))
+        time.sleep(1)
 
 def taxi_warning(msg, sensor_id):
     global state
@@ -79,7 +79,7 @@ def handle_central(conn, addr):
             mes = msg.split(" ")
             global state
                 
-            if mes[0] == "RESUME":
+            if mes[0] == "RESUME" and state != "MOVING":
                 state = "FINAL"
                 conn.send(f"TAXI NR {ID} has resumed it's working".encode(FORMAT))
             elif mes[0] == "STOP":
@@ -110,11 +110,11 @@ def TAXI_go(dest):
     global position
     global state
 
+    state = "MOVING"
     while not (int(dest[0]) == int(position[0]) and int(dest[1]) == int(position[1])):
         if state == "STOPPED":
             break
 
-        state = "MOVING"
         if int(dest[0]) > int(position[0]):
             position[0]+=1
         elif int(dest[0]) < int(position[0]):
@@ -126,10 +126,12 @@ def TAXI_go(dest):
 
         time.sleep(1)
 
+thread_stop = True
 request_consumer = KafkaConsumer("TaxiRequest", bootstrap_servers=ADDR_BROKER)
 def TAXI_request_receive():
     global active_request_ID
     global state
+    global thread_stop
     for message in request_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
 
@@ -147,36 +149,45 @@ def TAXI_request_receive():
 
             if state == "STOPPED":
                 #send_request_status thread.stop
+                thread_stop = False
                 thread_status_send_OK.join()
                 #send_request_status KO
                 send_request_status("KO")
-                return -1
-            
-            send_request_status("AT_CLIENT")
-            time.sleep(3)
-            #send_request_status ZALADOWAL
-            
-            #send_request_status thread OK
-            TAXI_go(dest)
+            else:
+                send_request_status("AT_CLIENT")
+                time.sleep(3)
+                #send_request_status ZALADOWAL
 
-            if state == "STOPPED":
-                #send_request_status thread.stop
-                thread_status_send_OK.join()
-                #send_request_status KO
-                send_request_status(f"KO {position[0]} {position[1]}")
-                return -1
-            
+                #send_request_status thread OK
+                TAXI_go(dest)
 
-            #send_request_status DOJECHAL
-            send_request_status("FINAL")
-            state = "FINAL"
+                if state == "STOPPED":
+                    #send_request_status thread.stop
+                    thread_stop = False
+                    thread_status_send_OK.join()
+                    #send_request_status KO
+                    send_request_status(f"KO {position[0]} {position[1]}")
+                else:
+                    #send_request_status DOJECHAL
+                    thread_stop = False
+                    thread_status_send_OK.join()
+                    send_request_status("FINAL")
+                    state = "FINAL"
 
 thread_request_receive = threading.Thread(target=TAXI_request_receive)
 thread_request_receive.start()
 
 def send_request_status(request_status):
-    producer.send("RequestStatus", (f"{active_request_ID} {request_status}").encode(FORMAT))
-    time.sleep(1)
+    global thread_stop
+    if request_status == "OK":
+        thread_stop = True
+        while thread_stop:
+            producer.send("RequestStatus", (f"{active_request_ID} {request_status}").encode(FORMAT))
+            time.sleep(1)
+    else:
+        producer.send("RequestStatus", (f"{active_request_ID} {request_status}").encode(FORMAT))
+
+    
 
 def start():
     server.listen()

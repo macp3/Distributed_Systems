@@ -27,13 +27,17 @@ thread_customer_position_send.start()
 
 request_consumer = KafkaConsumer("RequestStatus", bootstrap_servers=ADDR_BROKER)
 
+received = False
+
 def request_status_receive():
     global status
     global position
 
     for message in request_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
-
+        ###########################
+        print(message.value.decode(FORMAT))
+        ###########################
         if msg_split[0] == ID:
             if msg_split[1] == "KO" and len(msg_split) == 2:
                 return "KO"
@@ -46,8 +50,6 @@ def request_status_receive():
                 return "FINAL"
             elif msg_split[1] == "ABORT":
                 return "ABORT"
-            
-
 
 request = ""
 working = True
@@ -63,6 +65,7 @@ while working:
     elif len(request.split(" ")):
         request_split = request.split(" ")
         if 1 <= int(request_split[0]) <= 20 and 1 <= int(request_split[1]) <= 20:
+            received = False
             status = "WAITING"
             while status != "FINAL":
                 request_producer.send("Request", f"{ID} {request_split[0]} {request_split[1]}".encode(FORMAT))
@@ -77,6 +80,5 @@ while working:
                 elif request_status == "ABORT":
                     print("There are no free TAXIS")
                     status = "FINAL"
-                
         else:
             print("Wrong destination")
