@@ -171,7 +171,7 @@ def TAXI_request_receive():
                     #send_request_status DOJECHAL
                     thread_stop = False
                     thread_status_send_OK.join()
-                    send_request_status("FINAL")
+                    send_request_status(f"FINAL {position[0]} {position[1]}")
                     state = "FINAL"
 
 thread_request_receive = threading.Thread(target=TAXI_request_receive)

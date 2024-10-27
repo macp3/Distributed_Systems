@@ -3,6 +3,20 @@ import sys
 import time
 import threading
 from kafka import KafkaProducer, KafkaConsumer
+import json
+
+#######################################
+
+import win32api
+
+def on_exit(signal_type):
+    global working
+    request_producer.send("Request", f"EXIT {ID}".encode(FORMAT))
+    working = False
+
+win32api.SetConsoleCtrlHandler(on_exit, True)
+
+#######################################
 
 FORMAT = 'utf-8'
 
@@ -47,6 +61,7 @@ def request_status_receive():
             elif msg_split[1] == "AT_CLIENT":
                 status = "MOVING"
             elif msg_split[1] == "FINAL":
+                position = [msg_split[2], msg_split[3]]
                 return "FINAL"
             elif msg_split[1] == "ABORT":
                 return "ABORT"
@@ -56,6 +71,29 @@ working = True
 
 request_producer = KafkaProducer(bootstrap_servers=ADDR_BROKER)
 
+request_queue = []
+with open("EC_Request.json") as req_json:
+    for a in json.load(req_json)["Requests"]:
+        request_queue.append(a["Id"])
+
+if len(request_queue):
+    for requested_id in request_queue:
+        received = False
+        status = "WAITING"
+        while status != "FINAL":
+            request_producer.send("Request", f"{ID} {requested_id}".encode(FORMAT))
+
+            request_status = request_status_receive()
+
+            if request_status == "KO":
+                status = "WAITING"
+            elif request_status == "FINAL":
+                status = "FINAL"
+            elif request_status == "ABORT":
+                time.sleep(5)
+                status = "WAITING"
+        time.sleep(4)
+
 while working:
     request = input("Where do you want to go?: ")
 
@@ -63,12 +101,11 @@ while working:
         request_producer.send("Request", f"EXIT {ID}".encode(FORMAT))
         working = False
     elif len(request.split(" ")):
-        request_split = request.split(" ")
-        if 1 <= int(request_split[0]) <= 20 and 1 <= int(request_split[1]) <= 20:
+        if len(request) == 1:
             received = False
             status = "WAITING"
             while status != "FINAL":
-                request_producer.send("Request", f"{ID} {request_split[0]} {request_split[1]}".encode(FORMAT))
+                request_producer.send("Request", f"{ID} {request}".encode(FORMAT))
 
                 request_status = request_status_receive()
 
@@ -76,9 +113,8 @@ while working:
                     status = "WAITING"
                 elif request_status == "FINAL":
                     status = "FINAL"
-                    position = [request_split[0], request_split[1]]
                 elif request_status == "ABORT":
-                    print("There are no free TAXIS")
-                    status = "FINAL"
+                    time.sleep(5)
+                    status = "WAITING"
         else:
             print("Wrong destination")

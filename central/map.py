@@ -3,8 +3,9 @@ import sys
 import json
 import threading
 import time
-from colorama import Fore, Style
+from colorama import Fore, Style, Back
 import os
+import json
 
 FORMAT = 'utf-8'
 
@@ -12,6 +13,9 @@ BROKER_IP = sys.argv[1]
 BROKER_PORT = sys.argv[2]
 
 position_consumer = KafkaConsumer("CentralMap", bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
+
+with open("EC_locations.json") as pos_json:
+    position_dic = json.load(pos_json)
 
 taxi_dic = {} # {'1' : ["FINAL", [1,1]], '2' : ["FINAL", [1,1]]}
 customer_dic = {} 
@@ -60,9 +64,21 @@ def draw_map():
                 if isinstance(customer_pos, list) and len(customer_pos) == 2 and customer_status != "MOVING":
                     x, y = (customer_pos[0]-1) % 20, (customer_pos[1]-1) % 20
                     # Niebiescy klienci
-                    map_[y][x] = Fore.BLUE + f'C{customer_id}' + Style.RESET_ALL
+                    map_[y][x] = Back.YELLOW + f'C{customer_id}' + Style.RESET_ALL
             except Exception as e:
                 print(f"Error with client {customer_id}: {e}")
+
+        #Locations
+        for loc in position_dic['locations']:
+            loc_id = loc['Id']
+            loc_pos = loc['POS'].split(",")
+            try:
+                if isinstance(loc_pos, list) and len(loc_pos) == 2:
+                    x, y = (int(loc_pos[0]) - 1) % 20, (int(loc_pos[1]) - 1) % 20
+
+                    map_[y][x] = Back.BLUE + " " + loc_id + Style.RESET_ALL
+            except Exception as e:
+                print(f"Error with position {loc_id}: {e}")
 
         # Wydrukowanie każdej linii mapy
         for i, row in enumerate(map_, start=1):

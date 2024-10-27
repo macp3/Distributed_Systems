@@ -5,6 +5,7 @@ import pandas as pd
 from kafka import KafkaConsumer, KafkaProducer
 import time
 import os
+import json
 
 HEADER = 64
 CENTRAL_IP = socket.gethostbyname(socket.gethostname())
@@ -24,6 +25,13 @@ TAXI_IP = ""
 #taxi dic = {ID : [STATUS, [POSITION]]}
 taxi_dic = {}
 customer_dic = {}
+position_dic = {}
+with open("EC_locations.json") as pos_json:
+    position_dic_file = json.load(pos_json)['locations']
+
+    for a in position_dic_file:
+        position_dic[a['Id']] = [int(a['POS'].split(",")[0]), int(a['POS'].split(",")[1])]
+
 #pilecznik kurwo 
 # ID [DEST]
 request_queue = []
@@ -79,7 +87,7 @@ def request_receive():
         if msg_split[0] == "EXIT":
             customer_dic.pop(msg_split[1])
         else:
-            request_queue.append([int(msg_split[0]), [int(msg_split[1]), int(msg_split[2])]])
+            request_queue.append([int(msg_split[0]), [position_dic[msg_split[1]][0], position_dic[msg_split[1]][1]]])
 
 #moje tez
 #rozjebac wszystie psy petardami
