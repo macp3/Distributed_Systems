@@ -25,6 +25,9 @@ CTC_IP = "127.0.0.1" # DO ZMIANY
 ADDR = (CENTRAL_IP, PORT)
 TAXI_IP = ""
 
+producer= KafkaProducer(bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
+
+weather_status = "ON"
 weather = 10
 #taxi dic = {ID : [STATUS, [POSITION], [DESTINATION]]}
 taxi_dic = {}
@@ -57,6 +60,7 @@ def taxi_control():
 
                 if int(msg) in taxi_list_file["ID"].values and msg not in taxi_dic.keys():
                     print(f"\rNew TAXI has been registered: [ID: {msg} ADDR: {addr}]\n\r$: ", end="")
+                    producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] New TAXI has been registered: [ID: {msg} ADDR: {addr}])".encode(FORMAT))
                     conn.send(f"1".encode(FORMAT))
                     taxi_dic[msg] = ["FINAL", [1,1], [1,1]]
                 else:
@@ -88,9 +92,6 @@ def taxi_status_receive():
 
 request_consumer = KafkaConsumer("Request", bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
 def request_receive():
-    time.sleep(1)
-    for customers_id in customer_dic.keys():
-        request_producer.send("RequestStatus", (f"{customers_id} ABORT").encode(FORMAT))
     for message in request_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
         #request_queue = [ID, [DEST]]
@@ -132,12 +133,15 @@ thread_request_handle.start()
 
 def send_request_to_taxi(taxiID):
     customerID = request_queue[0][0]
-    message = f"{str(request_queue[0][0])} {str(taxiID)} {customer_dic[str(request_queue[0][0])][1][0]} {customer_dic[str(request_queue[0][0])][1][1]} {str(request_queue[0][1][0])} {str(request_queue[0][1][1])}"
-    # taxiID x y
+    try:
+        message = f"{str(request_queue[0][0])} {str(taxiID)} {customer_dic[str(request_queue[0][0])][1][0]} {customer_dic[str(request_queue[0][0])][1][1]} {str(request_queue[0][1][0])} {str(request_queue[0][1][1])}"
+        # taxiID x y
 
-    request_producer.send("TaxiRequest", message.encode(FORMAT))
+        request_producer.send("TaxiRequest", message.encode(FORMAT))
 
-    request_queue.pop(0)
+        request_queue.pop(0)
+    except:
+        pass
 
 #customer_dic["3"][1] = #[5,9]
 
@@ -199,18 +203,24 @@ def TAXI_GO(TAXI_ID, DEST):
 
 def check_weather():
     global weather
+    global weather_status
     stopped = False
     while True:
         time.sleep(10)
-        weather = requests.get(f"http://{CTC_IP}:6000/weather").json()['temp']
-        if weather < 0:
-            stopped = True
-            for taxi_id in taxi_dic.keys():
-                TAXI_ORDER("STOP", taxi_id)
-        elif stopped and weather >= 0:
-            stopped = False
-            for taxi_id in taxi_dic.keys():
-                TAXI_ORDER("RESUME", taxi_id)
+        try:
+            weather = requests.get(f"http://{CTC_IP}:6000/weather").json()['temp']
+            producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] Temperature: {weather}".encode(FORMAT))
+            weather_status = "ON"
+            if weather < 0:
+                stopped = True
+                for taxi_id in taxi_dic.keys():
+                    TAXI_ORDER("RETURN", taxi_id)
+            elif stopped and weather >= 0:
+                stopped = False
+                for taxi_id in taxi_dic.keys():
+                    TAXI_ORDER("RESUME", taxi_id)
+        except:
+            weather_status = "OFF"
 
 
 
@@ -220,8 +230,13 @@ thread_check_weather.start()
 def set_city(city):
     try:
         requests.post(f"http://{CTC_IP}:6000/weather", json={"city" : city})
-    except ValueError:
+    except:
         print("Wrong city name")
+
+#reset requestow
+for customers_id in range(100):
+        request_producer.send("RequestStatus", (f"{customers_id} ABORT").encode(FORMAT))
+
 
 Working = True
 command = ""

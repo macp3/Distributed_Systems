@@ -89,10 +89,10 @@ if len(request_queue):
         status = "WAITING"
         while status != "FINAL":
             request_producer.send("Request", f"{ID} {requested_id}".encode(FORMAT))
+            producer.send("notifications", (f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] CUSTOMER {ID} sent request to go to {requested_id}").encode(FORMAT))
             destination = requested_id
 
             request_status = request_status_receive()
-            print(requested_id)
 
             if request_status == "KO":
                 status = "WAITING"

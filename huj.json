@@ -1,0 +1,46 @@
+{
+    "taxis":[
+        {
+            "ID": 1,
+            "Status": "FINAL",
+            "pos": [4,2],
+            "dest": [8,1]
+        },
+        {
+            "ID": 2,
+            "Status": "FINAL",
+            "pos": [4,2],
+            "dest": [8,1]
+        },
+        {
+            "ID": 3,
+            "Status": "FINAL",
+            "pos": [4,2],
+            "dest": [8,1]
+        }
+    ],
+    "customers":[
+        {
+            "ID": 1,
+            "Status": "FINAL",
+            "pos": [4,2],
+            "dest": "A"
+        },
+        {
+            "ID": 2,
+            "Status": "FINAL",
+            "pos": [4,2],
+            "dest": "B"
+        },
+        {
+            "ID": 3,
+            "Status": "FINAL",
+            "pos": [4,2],
+            "dest": "C"
+        }
+    ],
+    "city": "warsaw",
+    "notification":["new taxi added", "blabalbla"],
+    "weather": 5,
+    "weather_status": "ON"
+}

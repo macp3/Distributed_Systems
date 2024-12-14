@@ -69,7 +69,7 @@ def handle_sensor(conn, sensor_id):
                 connected = False
             else:
                 taxi_warning(msg, sensor_id)
-                conn.send(f"TAXI has been warned".encode(FORMAT))
+                producer.send("notifications", (f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI {ID} has been warned by sensor {sensor_id}").encode(FORMAT))
     print(f"CLOSING THE SENSOR NUMBER {sensor_id}")
     conn.close()
 
@@ -83,10 +83,10 @@ def handle_central(conn, addr):
                 
             if mes[0] == "RESUME" and state != "MOVING":
                 state = "FINAL"
-                conn.send(f"TAXI NR {ID} has resumed it's working".encode(FORMAT))
+                producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} has resumed it's working".encode(FORMAT))
             elif mes[0] == "STOP":
                 state = "STOPPED"
-                conn.send(f"TAXI NR {ID} has stopped".encode(FORMAT))
+                producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} has stopped".encode(FORMAT))
             elif mes[0] == "GO":
                 if state == "MOVING":
                     conn.send(f"TAXI NR {ID} is already moving".encode(FORMAT))
@@ -100,8 +100,11 @@ def handle_central(conn, addr):
                     if state != "STOPPED":
                         state = "FINAL"
             elif mes[0] == "RETURN":
+                producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} is returning to base".encode(FORMAT))
+                state = "STOPPED"
+                time.sleep(0.5)
                 TAXI_go([1,1])
-                conn.send(f"TAXI NR {ID} is returning to base".encode(FORMAT))
+                state = "STOPPED"
             else:
                 conn.send(f"Ooops, something gone wrong, nothing happend".encode(FORMAT))
 
@@ -146,6 +149,7 @@ def TAXI_request_receive():
             dest = [msg_split[4], msg_split[5]]
 
             print(f"Received request from {active_request_ID}, going to {src}")
+            producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} received request from {active_request_ID}, going to {src}".encode(FORMAT))
 
             thread_status_send_OK = threading.Thread(target=lambda: send_request_status("OK"))
 
@@ -161,6 +165,7 @@ def TAXI_request_receive():
                 send_request_status("KO")
             else:
                 print(f"{active_request_ID} picked up, going to {dest}")
+                producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} picked up {active_request_ID}, going to {dest}".encode(FORMAT))
                 send_request_status("AT_CLIENT")
                 time.sleep(3)
                 #send_request_status ZALADOWAL

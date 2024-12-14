@@ -20,6 +20,8 @@ with open("EC_locations.json") as pos_json:
 taxi_dic = {} # {'1' : ["FINAL", [1,1]], '2' : ["FINAL", [1,1]]}
 customer_dic = {} 
 
+notifications = []
+
 def position_receive():
     global taxi_dic
     global customer_dic
@@ -95,7 +97,19 @@ def draw_map():
 
         print("\n" + "-" * 50 + "\n")
 
+        for notif in notifications:
+            print(notif)
+
         time.sleep(1)
+
+notification_consumer = KafkaConsumer("notifications", bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
+def notifications_receive():
+    global notifications
+    for message in notification_consumer:
+        notifications.insert(0, message.value.decode(FORMAT))
+
+thread_notifications_receive = threading.Thread(target=notifications_receive)
+thread_notifications_receive.start()
         
 
 thread_position_receive = threading.Thread(target=position_receive)
