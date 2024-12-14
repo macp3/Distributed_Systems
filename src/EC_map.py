@@ -81,18 +81,19 @@ def draw_map():
         for i, row in enumerate(map_, start=1):
             print(f'{i:2} ' + ' '.join(row))
 
-        print("\n" + "-" * 50 + "\n")  # Separator po mapie
+        print("\n" + "-" * 50 + "\n")
 
         print(Fore.GREEN + "Information about taxis:" + Style.RESET_ALL)
         for taxi_id, taxi_info in taxi_dic.items():
-            status, pos = taxi_info
-            print(f"Taxi {taxi_id}: Status = {status}, Position = {pos}")
+            status, pos, taxi_dest = taxi_info
+            print(f"Taxi {taxi_id}: Status = {status}, Position = {pos}, Destination: {taxi_dest}")
 
         print(Fore.BLUE + "\nInformation about customers:" + Style.RESET_ALL)
         for customer_id, customer_info in customer_dic.items():
-            print(f"Client {customer_id}: Position = {customer_info}")
+            status, pos, customer_dest = customer_info
+            print(f"Client {customer_id}: Status = {status}, Position = {pos}, Destination: {customer_dest}")
 
-        print("\n" + "-" * 50 + "\n")  # Separator
+        print("\n" + "-" * 50 + "\n")
 
         time.sleep(1)
         

@@ -17,11 +17,12 @@ status = "FINAL"
 producer= KafkaProducer(bootstrap_servers=ADDR_BROKER)
 
 position = [random.randint(1, 20), random.randint(1, 20)]
+destination = "0"
 
 closed = False
 def send_customer_position():
     while not closed:
-        producer.send("TaxiAndCustomerCoordinates", (f"CUSTOMER {ID} {status} [{position[0]},{position[1]}]").encode(FORMAT))
+        producer.send("TaxiAndCustomerCoordinates", (f"CUSTOMER {ID} {status} [{position[0]},{position[1]}] {destination}").encode(FORMAT))
         time.sleep(1)
 
 thread_customer_position_send = threading.Thread(target=send_customer_position)
@@ -82,13 +83,16 @@ win32api.SetConsoleCtrlHandler(on_exit, True)
 #######################################
 
 if len(request_queue):
+    time.sleep(1)
     for requested_id in request_queue:
         received = False
         status = "WAITING"
         while status != "FINAL":
             request_producer.send("Request", f"{ID} {requested_id}".encode(FORMAT))
+            destination = requested_id
 
             request_status = request_status_receive()
+            print(requested_id)
 
             if request_status == "KO":
                 status = "WAITING"
@@ -109,6 +113,7 @@ while working:
         if len(request) == 1:
             received = False
             status = "WAITING"
+            destination = request
             while status != "FINAL":
                 request_producer.send("Request", f"{ID} {request}".encode(FORMAT))
 

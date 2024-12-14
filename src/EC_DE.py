@@ -21,6 +21,7 @@ producer= KafkaProducer(bootstrap_servers=ADDR_BROKER)
 
 state = "FINAL"
 position = [1,1]
+destination = [1,1]
 
 active_request_ID = 0
 
@@ -46,7 +47,7 @@ def send_taxi_state():
 
 def send_taxi_position():
     while not closed:
-        producer.send("TaxiAndCustomerCoordinates", (f"TAXI {ID} [{position[0]},{position[1]}]").encode(FORMAT))
+        producer.send("TaxiAndCustomerCoordinates", (f"TAXI {ID} [{position[0]},{position[1]}] [{destination[0]},{destination[1]}]").encode(FORMAT))
         time.sleep(1)
 
 def taxi_warning(msg, sensor_id):
@@ -108,10 +109,12 @@ def handle_central(conn, addr):
     conn.close()
 
 def TAXI_go(dest):
+    global destination
     global position
     global state
 
     state = "MOVING"
+    destination = dest
     while not (int(dest[0]) == int(position[0]) and int(dest[1]) == int(position[1])):
         if state == "STOPPED":
             break
@@ -142,6 +145,8 @@ def TAXI_request_receive():
             src = [msg_split[2], msg_split[3]]
             dest = [msg_split[4], msg_split[5]]
 
+            print(f"Received request from {active_request_ID}, going to {src}")
+
             thread_status_send_OK = threading.Thread(target=lambda: send_request_status("OK"))
 
             #send_request_status thread OK
@@ -155,6 +160,7 @@ def TAXI_request_receive():
                 #send_request_status KO
                 send_request_status("KO")
             else:
+                print(f"{active_request_ID} picked up, going to {dest}")
                 send_request_status("AT_CLIENT")
                 time.sleep(3)
                 #send_request_status ZALADOWAL
@@ -170,6 +176,7 @@ def TAXI_request_receive():
                     send_request_status(f"KO {position[0]} {position[1]}")
                 else:
                     #send_request_status DOJECHAL
+                    print(f"{2} successfully transported")
                     thread_stop = False
                     thread_status_send_OK.join()
                     send_request_status(f"FINAL {position[0]} {position[1]}")

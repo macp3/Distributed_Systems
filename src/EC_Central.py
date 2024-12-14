@@ -6,23 +6,27 @@ from kafka import KafkaConsumer, KafkaProducer
 import time
 import os
 import json
+import requests
 
 HEADER = 64
 CENTRAL_IP = socket.gethostbyname(socket.gethostname())
 FORMAT = 'utf-8'
 EXIT = "EXIT"
 
-if len(sys.argv) != 4:
+if len(sys.argv) != 5:
     print("Wrong number of arguments")
     exit()
 
 PORT = int(sys.argv[1])
 BROKER_IP = sys.argv[2]
 BROKER_PORT = sys.argv[3]
+CTC_IP = "127.0.0.1" # DO ZMIANY
+#CTC_IP = sys.argv[4]
 ADDR = (CENTRAL_IP, PORT)
 TAXI_IP = ""
 
-#taxi dic = {ID : [STATUS, [POSITION]]}
+weather = 10
+#taxi dic = {ID : [STATUS, [POSITION], [DESTINATION]]}
 taxi_dic = {}
 customer_dic = {}
 position_dic = {}
@@ -54,7 +58,7 @@ def taxi_control():
                 if int(msg) in taxi_list_file["ID"].values and msg not in taxi_dic.keys():
                     print(f"\rNew TAXI has been registered: [ID: {msg} ADDR: {addr}]\n\r$: ", end="")
                     conn.send(f"1".encode(FORMAT))
-                    taxi_dic[msg] = ["FINAL", [1,1]]
+                    taxi_dic[msg] = ["FINAL", [1,1], [1,1]]
                 else:
                     conn.send(f"0".encode(FORMAT))
             finally:
@@ -73,6 +77,9 @@ def taxi_status_receive():
     for message in taxi_status_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
         # msg_split = 1 FINNAL
+        if msg_split[0] not in taxi_dic.keys():
+            taxi_dic[msg_split[0]] = ["FINAL", [1,1], [1,1]]
+
         if msg_split[1] == "CLOSED":
             taxi_dic.pop(msg_split[0])
         else:
@@ -81,6 +88,9 @@ def taxi_status_receive():
 
 request_consumer = KafkaConsumer("Request", bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
 def request_receive():
+    time.sleep(1)
+    for customers_id in customer_dic.keys():
+        request_producer.send("RequestStatus", (f"{customers_id} ABORT").encode(FORMAT))
     for message in request_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
         #request_queue = [ID, [DEST]]
@@ -139,12 +149,15 @@ def position_receive():
     global customer_dic
     for message in position_consumer:
         msg_split = message.value.decode(FORMAT).split(" ")
-        # msg_split = TAXI 1 [1,1]
-        # msg_split = CUSTOMER 1 STATE [1,1]
+        # msg_split = TAXI 1 [1,1] A
+        # msg_split = CUSTOMER 1 STATE [1,1] A
         if msg_split[0] == "TAXI":
+            if msg_split[1] not in taxi_dic.keys():
+                taxi_dic[msg_split[1]] = ["FINAL", [1,1], [1,1]]
             taxi_dic[msg_split[1]][1] = [int(msg_split[2][1:len(msg_split[2])-1].split(",")[0]), int(msg_split[2][1:len(msg_split[2])-1].split(",")[1])]
+            taxi_dic[msg_split[1]][2] = [int(msg_split[3][1:len(msg_split[3])-1].split(",")[0]), int(msg_split[3][1:len(msg_split[3])-1].split(",")[1])]
         elif msg_split[0] == "CUSTOMER":
-            customer_dic[msg_split[1]] = [msg_split[2], [int(msg_split[3][1:len(msg_split[3])-1].split(",")[0]), int(msg_split[3][1:len(msg_split[3])-1].split(",")[1])]]
+            customer_dic[msg_split[1]] = [msg_split[2], [int(msg_split[3][1:len(msg_split[3])-1].split(",")[0]), int(msg_split[3][1:len(msg_split[3])-1].split(",")[1])], msg_split[4]]
 
 thread_taxi_position_receive = threading.Thread(target=position_receive)
 thread_taxi_position_receive.start()
@@ -184,6 +197,32 @@ def TAXI_GO(TAXI_ID, DEST):
 
     print(client.recv(2048).decode(FORMAT))
 
+def check_weather():
+    global weather
+    stopped = False
+    while True:
+        time.sleep(10)
+        weather = requests.get(f"http://{CTC_IP}:6000/weather").json()['temp']
+        if weather < 0:
+            stopped = True
+            for taxi_id in taxi_dic.keys():
+                TAXI_ORDER("STOP", taxi_id)
+        elif stopped and weather >= 0:
+            stopped = False
+            for taxi_id in taxi_dic.keys():
+                TAXI_ORDER("RESUME", taxi_id)
+
+
+
+thread_check_weather = threading.Thread(target=check_weather)
+thread_check_weather.start()
+
+def set_city(city):
+    try:
+        requests.post(f"http://{CTC_IP}:6000/weather", json={"city" : city})
+    except ValueError:
+        print("Wrong city name")
+
 Working = True
 command = ""
 while Working:
@@ -192,6 +231,8 @@ while Working:
 
     if(command == EXIT):
         Working = False
+    elif len(commands) == 2 and commands[0] == "CITY":
+        set_city(commands[1])
     elif len(commands) > 1 and commands[1] not in taxi_dic.keys():
         print("Wrong taxi number")
     elif len(commands) == 2 and commands[0] in ("STOP", "RESUME", "RETURN") and commands[1].isdigit():
