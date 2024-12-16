@@ -2,6 +2,15 @@ import os
 from dotenv import load_dotenv
 import requests
 from flask import Flask, request, jsonify
+import socket
+import sys
+hostname = socket.gethostname()
+IPAddr = socket.gethostbyname(hostname)
+
+if len(sys.argv) != 2:
+    print("Wrong number of arguments")
+    exit()
+
 
 app = Flask(__name__)
 
@@ -10,7 +19,7 @@ load_dotenv()
 class EC_CTC:
     API_KEY = os.getenv("WEATHER_API_KEY")
 
-    city = "alicante"
+    city = sys.argv[1]
 
     def get_weather(self):
         response = requests.get(f"https://api.openweathermap.org/data/2.5/weather?q={self.city}&units=metric&appid={self.API_KEY}")
@@ -39,4 +48,4 @@ def set_city():
         return city_json, 201
     return {"error": "Request must be JSON"}, 415
 
-app.run(host="localhost", port=6000)
+app.run(host=IPAddr, port=6000)

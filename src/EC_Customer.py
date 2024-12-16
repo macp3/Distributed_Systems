@@ -22,7 +22,7 @@ destination = "0"
 closed = False
 def send_customer_position():
     while not closed:
-        producer.send("TaxiAndCustomerCoordinates", (f"CUSTOMER {ID} {status} [{position[0]},{position[1]}] {destination}").encode(FORMAT))
+        producer.send("CustomerCoordinates", (f"CUSTOMER {ID} {status} [{position[0]},{position[1]}] {destination}").encode(FORMAT))
         time.sleep(1)
 
 thread_customer_position_send = threading.Thread(target=send_customer_position)
@@ -44,10 +44,13 @@ def request_status_receive():
                 return "KO"
             elif msg_split[1] == "KO" and len(msg_split) == 4:
                 position = [msg_split[2], msg_split[3]]
+                print(f"KO status of request - leaving taxi at {position}")
                 return "KO"
             elif msg_split[1] == "AT_CLIENT":
+                print("Entering TAXI")
                 status = "MOVING"
             elif msg_split[1] == "FINAL":
+                print(f"Reached destination: {destination}")
                 position = [msg_split[2], msg_split[3]]
                 return "FINAL"
             elif msg_split[1] == "ABORT":

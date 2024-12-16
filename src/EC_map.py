@@ -6,6 +6,8 @@ import time
 from colorama import Fore, Style, Back
 import os
 import json
+import pandas as pd
+from cryptography.fernet import Fernet 
 
 FORMAT = 'utf-8'
 
@@ -49,7 +51,7 @@ def draw_map():
                     if status == "MOVING":
                         # Zielone taksówki, które zakończyły podróż
                         map_[y][x] = Fore.GREEN + f'T{taxi_id}' + Style.RESET_ALL
-                    elif status == "FINAL" or status == "STOPPED":
+                    elif status == "FINAL"  or status == "STOPPED" or status == "NON_VALID_TOKEN":
                         map_[y][x] = Fore.RED + f'T{taxi_id}' + Style.RESET_ALL
             except Exception as e:
                 print(f"Error with taxi {taxi_id}: {e}")
@@ -102,11 +104,25 @@ def draw_map():
 
         time.sleep(1)
 
+def get_tokens_list():
+    taxi_list_file = pd.read_csv("taxis.csv")
+
+    return taxi_list_file['key'].values.tolist()
+
 notification_consumer = KafkaConsumer("notifications", bootstrap_servers=f"{BROKER_IP}:{BROKER_PORT}")
 def notifications_receive():
     global notifications
     for message in notification_consumer:
-        notifications.insert(0, message.value.decode(FORMAT))
+        msg_enc = message.value
+
+        tokens = get_tokens_list()
+        for token in tokens:
+            try:
+                msg_dec = Fernet(token).decrypt(msg_enc)
+
+                notifications.insert(0, msg_dec.decode(FORMAT))
+            except:
+                pass
 
 thread_notifications_receive = threading.Thread(target=notifications_receive)
 thread_notifications_receive.start()

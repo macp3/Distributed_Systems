@@ -3,6 +3,8 @@ import threading
 import time
 import sys
 from kafka import KafkaProducer, KafkaConsumer
+import requests
+from cryptography.fernet import Fernet 
 
 HEADER = 64
 PORT = 5050
@@ -10,12 +12,13 @@ TAXI_IP = socket.gethostbyname(socket.gethostname())
 FORMAT = 'utf-8'
 EXIT = "EXIT"
 
-if len(sys.argv) != 6:
+if len(sys.argv) != 7:
     exit()
 
 ADDR_CENT = (sys.argv[1], int(sys.argv[2]))
 ADDR_BROKER = f"{sys.argv[3]}:{sys.argv[4]}"
 ID = sys.argv[5]
+REGISTER_IP = sys.argv[6]
 
 producer= KafkaProducer(bootstrap_servers=ADDR_BROKER)
 
@@ -26,7 +29,6 @@ destination = [1,1]
 active_request_ID = 0
 
 connected_sensors = []
-
 def send(msg):
     message = msg.encode(FORMAT)
     # msg_length = len(message)
@@ -35,19 +37,16 @@ def send(msg):
     # client.send(send_length)
     client.send(message)
 
-client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-client.connect(ADDR_CENT)
-send(str(ID))
-
 closed = False
 def send_taxi_state():
     while not closed:
-        producer.send("TaxiStatus", (f"{ID} {state}").encode(FORMAT))
+        #producer.send("TaxiStatus", str(ID).encode(FORMAT) + Fernet(get_token()).encrypt(state.encode(FORMAT)))
+        producer.send("TaxiStatus", Fernet(get_token()).encrypt(f"{ID} {state}".encode(FORMAT)))
         time.sleep(1)
 
 def send_taxi_position():
     while not closed:
-        producer.send("TaxiAndCustomerCoordinates", (f"TAXI {ID} [{position[0]},{position[1]}] [{destination[0]},{destination[1]}]").encode(FORMAT))
+        producer.send("TaxiCoordinates", Fernet(get_token()).encrypt((f"TAXI {ID} [{position[0]},{position[1]}] [{destination[0]},{destination[1]}]").encode(FORMAT)))
         time.sleep(1)
 
 def taxi_warning(msg, sensor_id):
@@ -69,7 +68,7 @@ def handle_sensor(conn, sensor_id):
                 connected = False
             else:
                 taxi_warning(msg, sensor_id)
-                producer.send("notifications", (f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI {ID} has been warned by sensor {sensor_id}").encode(FORMAT))
+                producer.send("notifications", Fernet(get_token()).encrypt((f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI {ID} has been warned by sensor {sensor_id}").encode(FORMAT)))
     print(f"CLOSING THE SENSOR NUMBER {sensor_id}")
     conn.close()
 
@@ -80,13 +79,16 @@ def handle_central(conn, addr):
         if msg:
             mes = msg.split(" ")
             global state
-                
+            
+            print(f"Received order from central: {msg}")
+
             if mes[0] == "RESUME" and state != "MOVING":
                 state = "FINAL"
-                producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} has resumed it's working".encode(FORMAT))
+                producer.send("notifications", Fernet(get_token()).encrypt(f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} has resumed it's working".encode(FORMAT)))
+                print(state)
             elif mes[0] == "STOP":
                 state = "STOPPED"
-                producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} has stopped".encode(FORMAT))
+                producer.send("notifications", Fernet(get_token()).encrypt(f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} has stopped".encode(FORMAT)))
             elif mes[0] == "GO":
                 if state == "MOVING":
                     conn.send(f"TAXI NR {ID} is already moving".encode(FORMAT))
@@ -100,9 +102,10 @@ def handle_central(conn, addr):
                     if state != "STOPPED":
                         state = "FINAL"
             elif mes[0] == "RETURN":
-                producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} is returning to base".encode(FORMAT))
+                print("Received RETURN order")
+                producer.send("notifications", Fernet(get_token()).encrypt(f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} is returning to base".encode(FORMAT)))
                 state = "STOPPED"
-                time.sleep(0.5)
+                time.sleep(2)
                 TAXI_go([1,1])
                 state = "STOPPED"
             else:
@@ -140,52 +143,60 @@ def TAXI_request_receive():
     global state
     global thread_stop
     for message in request_consumer:
-        msg_split = message.value.decode(FORMAT).split(" ")
+        msg_enc = message.value
 
-        if msg_split[1] == ID:
+        try:
+            msg_dec = Fernet(get_token()).decrypt(msg_enc)
+            msg_split = msg_dec.decode(FORMAT).split(" ")
 
-            active_request_ID = msg_split[0]
-            src = [msg_split[2], msg_split[3]]
-            dest = [msg_split[4], msg_split[5]]
+            if msg_split[1] == ID:
 
-            print(f"Received request from {active_request_ID}, going to {src}")
-            producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} received request from {active_request_ID}, going to {src}".encode(FORMAT))
+                active_request_ID = msg_split[0]
+                src = [msg_split[2], msg_split[3]]
+                dest = [msg_split[4], msg_split[5]]
 
-            thread_status_send_OK = threading.Thread(target=lambda: send_request_status("OK"))
+                print(f"Received request from {active_request_ID}, going to {src}")
+                producer.send("notifications", Fernet(get_token()).encrypt(f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} received request from {active_request_ID}, going to {src}".encode(FORMAT)))
 
-            #send_request_status thread OK
-            thread_status_send_OK.start()
-            TAXI_go(src)
-
-            if state == "STOPPED":
-                #send_request_status thread.stop
-                thread_stop = False
-                thread_status_send_OK.join()
-                #send_request_status KO
-                send_request_status("KO")
-            else:
-                print(f"{active_request_ID} picked up, going to {dest}")
-                producer.send("notifications", f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} picked up {active_request_ID}, going to {dest}".encode(FORMAT))
-                send_request_status("AT_CLIENT")
-                time.sleep(3)
-                #send_request_status ZALADOWAL
+                thread_status_send_OK = threading.Thread(target=lambda: send_request_status("OK"))
 
                 #send_request_status thread OK
-                TAXI_go(dest)
+                thread_status_send_OK.start()
+                TAXI_go(src)
 
                 if state == "STOPPED":
                     #send_request_status thread.stop
                     thread_stop = False
                     thread_status_send_OK.join()
                     #send_request_status KO
-                    send_request_status(f"KO {position[0]} {position[1]}")
+                    send_request_status("KO")
                 else:
-                    #send_request_status DOJECHAL
-                    print(f"{2} successfully transported")
-                    thread_stop = False
-                    thread_status_send_OK.join()
-                    send_request_status(f"FINAL {position[0]} {position[1]}")
-                    state = "FINAL"
+                    print(f"{active_request_ID} picked up, going to {dest}")
+                    producer.send("notifications", Fernet(get_token()).encrypt(f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI NR {ID} picked up {active_request_ID}, going to {dest}".encode(FORMAT)))
+                    send_request_status("AT_CLIENT")
+                    time.sleep(3)
+                    #send_request_status ZALADOWAL
+
+                    #send_request_status thread OK
+                    TAXI_go(dest)
+
+                    if state == "STOPPED":
+                        #send_request_status thread.stop
+                        thread_stop = False
+                        thread_status_send_OK.join()
+                        #send_request_status KO
+                        send_request_status(f"KO {position[0]} {position[1]}")
+                    else:
+                        #send_request_status DOJECHAL
+                        print(f"{2} successfully transported")
+                        producer.send("notifications", Fernet(get_token()).encrypt(f"[{time.localtime().tm_mday}-{time.localtime().tm_mon}-{time.localtime().tm_year},{time.localtime().tm_hour}:{time.localtime().tm_min}] TAXI {ID} successfully transported {active_request_ID} to {dest}".encode(FORMAT)))
+
+                        thread_stop = False
+                        thread_status_send_OK.join()
+                        send_request_status(f"FINAL {position[0]} {position[1]}")
+                        state = "FINAL"
+        except:
+            pass
 
 thread_request_receive = threading.Thread(target=TAXI_request_receive)
 thread_request_receive.start()
@@ -200,7 +211,17 @@ def send_request_status(request_status):
     else:
         producer.send("RequestStatus", (f"{active_request_ID} {request_status}").encode(FORMAT))
 
-    
+def get_token():
+    with open(f"TAXI_{ID}_TOKEN.txt", "r") as f:
+        token = f.read()
+    return token
+
+def validate_token():
+    while True:
+        time.sleep(5)
+        client2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client2.connect(ADDR_CENT)
+        client2.send(f"TOKEN {ID} {get_token()}".encode(FORMAT))
 
 def start():
     server.listen()
@@ -237,7 +258,7 @@ def on_exit(signal_type):
 
     time.sleep(1)
 
-    producer.send("TaxiStatus", (f"{ID} CLOSED").encode(FORMAT))
+    producer.send("TaxiStatus", Fernet(get_token()).encrypt((f"{ID} CLOSED").encode(FORMAT)))
 
     time.sleep(1)
 
@@ -245,6 +266,10 @@ def on_exit(signal_type):
 win32api.SetConsoleCtrlHandler(on_exit, True)
 
 ####################################################
+
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client.connect(ADDR_CENT)
+send(str(ID))
 
 if int(client.recv(2048).decode(FORMAT)):
 
@@ -263,6 +288,40 @@ if int(client.recv(2048).decode(FORMAT)):
     thread_position = threading.Thread(target=send_taxi_position)
     thread_position.start()
 
+    thread_validate_token = threading.Thread(target=validate_token)
+    thread_validate_token.start()
+
     start()
 else:
-    print("This taxi ID is not valid")
+
+    token = requests.put(f"https://{REGISTER_IP}:6001/register?&ID={ID}", verify=False).json()
+    
+    with open(f"TAXI_{ID}_TOKEN.txt", "w") as f:
+        f.write(token)
+
+    time.sleep(0.5)
+
+    client3 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client3.connect(ADDR_CENT)
+    client3.send(str(ID).encode(FORMAT))
+
+    if int(client3.recv(2048).decode(FORMAT)):
+
+        ADDR = (TAXI_IP, PORT+int(ID)+1)
+
+        server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server.bind(ADDR)
+
+        print(f"[START] TAXI started at {ADDR[0]}, {ADDR[1]}")
+
+        thread_status = threading.Thread(target=send_taxi_state)
+        thread_status.start()
+
+        thread_position = threading.Thread(target=send_taxi_position)
+        thread_position.start()
+
+        thread_validate_token = threading.Thread(target=validate_token)
+        thread_validate_token.start()
+
+        start()
+    print("System couldn't register a taxi")
